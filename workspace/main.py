@@ -36,7 +36,7 @@ class SemanticLocalization:
         img = left_imgs[0]
 
         # Set vehicle pose
-        vehicle_pose_WC = np.array([5, 0, 0, 0, 0, np.deg2rad(90)])
+        vehicle_pose_WC = np.array([5, 3, 0, 0, 0, np.deg2rad(90)])
         world_display.add_ego(vehicle_pose_WC[:4].reshape(4,1))
 
         T_vehicle_pose_WC = self.transformer.pose_to_4x4_Rt(vehicle_pose_WC)
@@ -66,13 +66,23 @@ class SemanticLocalization:
         left_lane_WC = self.extractor.generate_straight_lane(4)
         right_lane_WC = self.extractor.generate_straight_lane(6)
 
-        world_display.add_points(left_lane_WC)
-        world_display.add_points(right_lane_WC)
+        world_display.add_points(left_lane_WC, color='y')
+        world_display.add_points(right_lane_WC, color='y')
 
         # Transform elements
         elems_world_WC = np.hstack([left_lane_WC, right_lane_WC])
         elems_world_CC = VC_to_CC @ WC_to_VC @ elems_world_WC #TODO:
         #replace with WC_to_CC and comment inverses
+
+
+
+        # Display Image Plane(not exact size)
+
+        image_plane_CC = self.visualizer.create_3d_world(mapsize=0.5, res=50)
+        image_plane_CC = np.vstack((image_plane_CC[0:2, :], np.ones((2, image_plane_CC.shape[1]))))
+        image_plane_WC = VC_to_WC @ CC_to_VC @ image_plane_CC
+        world_display.add_points(image_plane_WC, color='red')
+
 
         world_display.show()
 

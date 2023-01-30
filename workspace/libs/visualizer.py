@@ -79,13 +79,14 @@ class Visualizer:
 
                 # Set plot
                 self.ax = fig.add_subplot(111)
+                self.ax.set_title('<Image Plane>')
                 self.ax.set_aspect('equal')
 
             def add_points(self, points):
-                plt.scatter(points[0, :], points[1, :])
+                plt.scatter(points[0, :], points[1, :], color='yellow')
 
             def add_meshgrid(self, gridX, gridY):
-                self.ax.scatter(gridX, gridY, color='green')
+                self.ax.scatter(gridX, gridY, color='red')
 
             def show(self):
                 plt.show() 
@@ -102,6 +103,8 @@ class Visualizer:
                 # Set plot
                 self.ax = fig.add_subplot(111, projection='3d')
 
+                self.ax.set_title('<World>')
+
 
                 self.ax.auto_scale_xyz([0, 10], [0, 10], [0, 3])
                 self.ax.set_aspect('equal')
@@ -112,10 +115,10 @@ class Visualizer:
                 self.ax.set_zlabel('$Z$', fontsize=20, rotation = 0)
 
                 # Set world
-                self.ax.scatter(world[0,:], world[1,:], world[2,:], marker='.', alpha=0.5)
+                self.ax.scatter(world[0,:], world[1,:], world[2,:], marker='.', alpha=0.3)
                             
-            def add_points(self, points):
-                self.ax.scatter(points[0,:], points[1,:], points[2,:], marker='o', s=100, c='r', alpha=1.0)
+            def add_points(self, points, color='r'):
+                self.ax.scatter(points[0,:], points[1,:], points[2,:], marker='o', s=100, c=color, alpha=1.0)
 
             def add_vector_from_T(self, T):
                 base = np.array([1, 0, 0])
@@ -139,7 +142,7 @@ class Visualizer:
 
 
             def add_ego(self, points):
-                self.ax.scatter(points[0,:], points[1,:], points[2,:], marker='o', s=700, c='g', alpha=1.0)
+                self.ax.scatter(points[0,:], points[1,:], points[2,:], marker='o', s=700, c='gray', alpha=1.0)
             def show(self):
                 plt.show()
 
