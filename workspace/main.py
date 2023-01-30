@@ -41,8 +41,10 @@ class SemanticLocalization:
         world_display = self.visualizer.get_world_display(world)
 
         world_display.add_points(left_lane)
+
         world_display.add_points(right_lane)
         world_display.add_ego(pose_vehicle[:4].reshape(4,1))
+        self.transformer.test()
         world_display.show()
 
         img = self.visualizer.draw_multiple_dots(img, output.T)

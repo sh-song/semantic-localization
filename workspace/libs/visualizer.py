@@ -54,12 +54,44 @@ class Visualizer:
             def __init__(self, world):
                 fig = plt.figure(figsize=(16,16))
 
+                # Set plot
                 self.ax = fig.add_subplot(111, projection='3d')
+
+
+                self.ax.auto_scale_xyz([0, 10], [0, 10], [0, 3])
+                self.ax.set_aspect('equal')
+
+                # Set axis names
+                self.ax.set_xlabel('$X$', fontsize=20)
+                self.ax.set_ylabel('$Y$', fontsize=20)
+                self.ax.set_zlabel('$Z$', fontsize=20, rotation = 0)
+
+                # Set world
                 self.ax.scatter(world[0,:], world[1,:], world[2,:], marker='.', alpha=0.5)
                             
             def add_points(self, points):
-
                 self.ax.scatter(points[0,:], points[1,:], points[2,:], marker='o', s=100, c='r', alpha=1.0)
+
+            def add_vector_from_T(self, T):
+                base = np.array([1, 0, 0])
+                start_point = T[0:3, 3]
+                end_point = T[0:3, 0:3] @ base
+
+                self.ax.quiver(*start_point, *end_point, color='red')
+
+            def add_coordinate_marker_from_T(self, T, length=1):
+                start_point = T[0:3, 3]
+                rot =T[0:3, 0:3] 
+                colors = ['red', 'blue', 'green']
+                for i, color in enumerate(colors):
+                    basis = np.zeros(3)
+                    basis[i] = length
+                    end_point = rot @ basis
+                    self.ax.quiver(*start_point, *end_point, color=color)
+
+            def add_text_on_point(self, text, x, y, z):
+                self.ax.text(x, y, z, text, size=20, color='k')
+
 
             def add_ego(self, points):
                 self.ax.scatter(points[0,:], points[1,:], points[2,:], marker='o', s=1000, c='g', alpha=1.0)
