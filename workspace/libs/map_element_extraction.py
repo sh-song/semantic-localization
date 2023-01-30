@@ -21,9 +21,10 @@ class MapElementExtractor:
         elem = np.hstack([xs, ys, zs, ones]).reshape(4, n)
         return elem
     def generate_straight_lane(self, x):
-        n = (10 - 0) // 1
+        length = 20
+        n = 50
         xs = np.ones(n) * x
-        ys = np.arange(0, 10, 1)
+        ys = np.linspace(0, 20, n)
         zs = np.ones(n) * 0
         ones = np.ones(n)
 

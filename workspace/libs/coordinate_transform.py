@@ -67,9 +67,15 @@ class CoordinateTransformer:
         print('in world2', tmp2_world)
 
 
+    def Img_to_Plt(self, points_Img):
+        R = np.array([[0, -1, 0], [1, 0, 0]]) # Rotate by 90 deg
+        print(R)
+        print(points_Img.shape)
+        return R @ points_Img
+
+        
 
     def run(self, elems_world, pose_vehicle):
-
 
         # cam_to_vehicle = self.pose_to_4x4_Rt(x=self.pose_camera[0],
         #                                      y=self.pose_camera[1],
