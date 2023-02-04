@@ -68,11 +68,11 @@ class CoordinateTransformer:
 
 
     def Img_to_Plt(self, points_Img):
-        R = np.array([[0, -1, 0], [1, 0, 0]]) # Rotate by 90 deg
-        print(R)
-        print(points_Img.shape)
-        return R @ points_Img
+        points_Img_cp = points_Img.copy()
 
+        # Swap x and y
+        points_Img_cp[[0, 1]] = points_Img_cp[[1, 0]]
+        return points_Img_cp
         
 
     def run(self, elems_world, pose_vehicle):

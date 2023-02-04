@@ -38,12 +38,12 @@ class Visualizer:
 
 
     def get_meshgrid_from_image(self, img):
-        h = img.shape[0] #512
-        w = img.shape[1] #1392
+        h_half = img.shape[0] // 2 #512 /2
+        w_half = img.shape[1] // 2 #1392 /2
  
 
-        h_space = np.linspace(0, h, h//10)
-        w_space = np.linspace(0, w, w//10)
+        h_space = np.linspace(-h_half, h_half, h_half//10)
+        w_space = np.linspace(-w_half, w_half, w_half//10)
 
         # Generate the meshgrid
         height, width = np.meshgrid(h_space, w_space)
@@ -70,6 +70,7 @@ class Visualizer:
 
         return world
 
+
     def get_image_plane_display(self):
 
         class ImagePlaneDisplay():
@@ -83,10 +84,10 @@ class Visualizer:
                 self.ax.set_aspect('equal')
 
             def add_points(self, points):
-                plt.scatter(points[0, :], points[1, :], color='yellow')
+                self.ax.scatter(points[0, :], points[1, :], color='orange')
 
             def add_meshgrid(self, gridX, gridY):
-                self.ax.scatter(gridX, gridY, color='red')
+                self.ax.scatter(gridX, gridY, color='red', marker='s')
 
             def show(self):
                 plt.show() 
@@ -117,8 +118,8 @@ class Visualizer:
                 # Set world
                 self.ax.scatter(world[0,:], world[1,:], world[2,:], marker='.', alpha=0.3)
                             
-            def add_points(self, points, color='r'):
-                self.ax.scatter(points[0,:], points[1,:], points[2,:], marker='o', s=100, c=color, alpha=1.0)
+            def add_points(self, points, color='r', marker='o', size=100):
+                self.ax.scatter(points[0,:], points[1,:], points[2,:], marker=marker, s=size, c=color, alpha=1.0)
 
             def add_vector_from_T(self, T):
                 base = np.array([1, 0, 0])
@@ -142,7 +143,7 @@ class Visualizer:
 
 
             def add_ego(self, points):
-                self.ax.scatter(points[0,:], points[1,:], points[2,:], marker='o', s=700, c='gray', alpha=1.0)
+                self.ax.scatter(points[0,:], points[1,:], points[2,:], marker='^', s=700, c='gray', alpha=1.0)
             def show(self):
                 plt.show()
 
