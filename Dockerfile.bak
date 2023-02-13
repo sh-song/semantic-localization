@@ -1,4 +1,4 @@
-FROM ros:noetic-ros-base-focal
+FROM ubuntu:20.04
 ARG DEBIAN_FRONTEND=noninteractive
 
 #Fundamentals
@@ -10,7 +10,12 @@ RUN \
 #HPP Environment
 RUN apt install -y \
         g++ \
-        python3-pip
+        python3-pip \
+        libblas-dev \
+        liblapack-dev \
+        libpng-dev \
+        libfreetype6-dev \
+        linux-tools-5.15.0-48-generic
 
 #HPP Python
 RUN pip3 install \
@@ -36,25 +41,7 @@ RUN pip3 install \
         utm \
         pymap3d \
         tqdm \
-        geopandas==0.8.2
-
-## For ROS
-#ROS
-RUN apt install -y \
-	build-essential \
-	cmake \
-	libyaml-cpp-dev \
-	libpcap-dev \
-	libeigen3-dev \
-	libjsoncpp-dev
-
-#ROS python
-RUN \
-	apt install -y python3-pip && \
-	apt install -y python3-catkin-tools python3-vcstool python3-osrf-pycommon
-
-# ROS msg
-RUN apt install -y ros-noetic-novatel-oem7-driver
+        geopandas
 
 #Directory
 RUN mkdir -p /workspace/output

@@ -38,3 +38,20 @@ class Config:
                                 [-1.683901e-02, 2.415116e-03, 9.998553e-01]])
 
 
+
+    camera_pose_VC = np.array([1, 0, 1.5, 0, np.deg2rad(90+10), np.deg2rad(0)]) 
+
+    ## Image size
+    IMG_H = 512
+    IMG_W = 1392
+    plt_pose_IMG = np.array([IMG_H//2, IMG_W//2, 0, 0, np.deg2rad(180), np.deg2rad(90)]) 
+
+
+    base_lla = ['37.3890294', '126.6487574','6.0'] 
+    base_lla = [37.3890294, 126.6487574,6.0] 
+    init_lla = [37.389059, 126.648787, 6.4]
+    precision = '1.0'
+    map_path = './data/maps/songdo'
+
+
+    initial_vehicle_pose_WC = np.array([2.621263252100426, 3.2851581777834498, 0.39999861389485725, 0, 0, np.deg2rad(140)])
