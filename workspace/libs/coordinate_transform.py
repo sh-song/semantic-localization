@@ -5,25 +5,102 @@ from numpy import cos, sin, array
 class CoordinateTransformer:
 
 
-    def __init__(self, cfg):
-        self.cfg = cfg
-        self.K1 = self.cfg.K_left_color
-        self.dist1 = self.cfg.dist_left_color
-
-        #TODO: from cfg, camera extrinsic calibration
-        self.pose_camera = np.array([1,1,1, np.deg2rad(90),0 , 0]) 
-
-    def pose_to_4x4_Rt(self, pose):
+    def __init__(self):
         
-        # Create quaternion from Radian angles
-        roll = 0.5*pose[3] 
-        pitch = 0.5 * pose[4]
-        yaw = 0.5 * pose[5]
+        # Transforms
+        self.VC_TO_WC = np.zeros([4,4], dtype=np.float64)
+        self.WC_TO_VC = np.zeros([4,4], dtype=np.float64)
 
-        q = array([cos(roll)*cos(pitch)*cos(yaw) + sin(roll)*sin(pitch)*sin(yaw),
-                    sin(roll)*cos(pitch)*cos(yaw) - cos(roll)*sin(pitch)*sin(yaw),
-                    cos(roll)*sin(pitch)*cos(yaw) + sin(roll)*cos(pitch)*sin(yaw),
-                    cos(roll)*cos(pitch)*sin(yaw) - sin(roll)*sin(pitch)*cos(yaw)])
+        self.CC_TO_VC = np.zeros([4,4], dtype=np.float64)
+        self.VC_TO_CC = np.zeros([4,4], dtype=np.float64)
+
+        self.CC_TO_WC = np.zeros([4,4], dtype=np.float64)
+        self.WC_TO_CC = np.zeros([4,4], dtype=np.float64)
+
+        self.CC_TO_IMG2D = np.zeros([3,4], dtype=np.float64)
+        self.IMG_TO_CC = np.zeros([4,3], dtype=np.float64)
+
+        self.IMG3D_TO_PLT =np.zeros([4,4], dtype=np.float64)
+        self.PLT_TO_IMG =np.zeros([4,4], dtype=np.float64)
+ 
+        self.IMG_TO_WC =np.zeros([4,4], dtype=np.float64)
+        self.WC_TO_IMG =np.zeros([4,4], dtype=np.float64)
+
+    def set_transforms_CC_VC(self, camera_pose_VC):
+        T_camera_pose_VC = self.__pose_to_4x4_Rt(camera_pose_VC)
+        self.CC_TO_VC = T_camera_pose_VC
+        self.VC_TO_CC = npl.inv(T_camera_pose_VC)
+
+        # print(f"CC_TO_VC:\n{self.CC_TO_VC}\nVC_TO_CC:\n{self.VC_TO_CC}\n")
+
+    def set_transforms_IMG_CC(self, K):
+        self.CC_TO_IMG2D = np.hstack((K, np.zeros([3, 1])))
+        self.IMG2D_TO_CC = npl.inv(K)
+
+        f_x = K[0, 0]
+        f_y = K[1, 1]
+        p_x = K[0, 2]
+        p_y = K[1, 2]
+
+        tmp = np.array([-p_x / f_x, -p_y / f_y, 1, 0, 0, 0], dtype=np.float64) # z=1 
+        self.IMG3D_TO_CC = self.__pose_to_4x4_Rt(tmp)
+
+        # print(f"CC_TO_IMG2D:\n{self.CC_TO_IMG2D}\nIMG3D_TO_CC:\n{self.IMG3D_TO_CC}\n")
+
+    def set_transforms_PLT_IMG(self, plt_pose_IMG):
+        # plt_pose_IMG = np.array([h//2, w//2, 0, 0, np.deg2rad(180), np.deg2rad(90)]) 
+        self.IMG3D_TO_PLT = self.__pose_to_4x4_Rt(plt_pose_IMG)
+        self.PLT_TO_IMG3D = npl.inv(self.IMG3D_TO_PLT)
+
+        # print(f"IMG3D_TO_PLT:\n{self.IMG3D_TO_PLT}\nPLT_TO_IMG3D:\n{self.PLT_TO_IMG3D}\n")
+
+    def update_transforms_VC_WC(self, vehicle_pose_WC):
+        T_vehicle_pose_WC = self.__pose_to_4x4_Rt(vehicle_pose_WC)
+
+        self.VC_TO_WC = T_vehicle_pose_WC
+        self.WC_TO_VC = npl.inv(T_vehicle_pose_WC)
+
+        # print(f"VC_TO_WC:\n{self.VC_TO_WC}\nWC_TO_VC:\n{self.WC_TO_VC}\n")
+   
+    def update_transforms_CC_WC(self):
+
+        self.CC_TO_WC = self.VC_TO_WC @ self.CC_TO_VC
+        self.WC_TO_CC = self.VC_TO_CC @ self.WC_TO_VC
+
+        # print(f"CC_TO_WC:\n{self.CC_TO_WC}\nWC_TO_CC:\n{self.WC_TO_CC}\n")
+
+    def update_transforms_IMG_WC(self):
+
+        self.IMG3D_TO_WC = self.CC_TO_WC @ self.IMG3D_TO_CC
+        self.WC_TO_IMG = self.CC_TO_IMG2D @ self.WC_TO_CC
+
+        # print(f"IMG_TO_WC:\n{self.IMG_TO_WC}\nWC_TO_IMG:\n{self.WC_TO_IMG}\n")
+
+
+
+    def get_all_T_poses_WC(self):
+
+        T_poses_WC_dict = {}
+        T_poses_WC_dict['Camera'] = self.CC_TO_WC
+        T_poses_WC_dict['Vehicle'] = self.VC_TO_WC
+        T_poses_WC_dict['FOV'] = self.VC_TO_WC @ self.CC_TO_VC @ self.IMG3D_TO_CC  
+
+        return T_poses_WC_dict
+
+
+    def __pose_to_4x4_Rt(self, pose):
+        
+        # pose = np.array([x, y, z, roll, pitch, yaw])
+
+        # Create quaternion from Radian angles
+        half_r = 0.5 * pose[3] 
+        half_p = 0.5 * pose[4]
+        half_y = 0.5 * pose[5]
+
+        q = array([cos(half_r)*cos(half_p)*cos(half_y) + sin(half_r)*sin(half_p)*sin(half_y),
+                    sin(half_r)*cos(half_p)*cos(half_y) - cos(half_r)*sin(half_p)*sin(half_y),
+                    cos(half_r)*sin(half_p)*cos(half_y) + sin(half_r)*cos(half_p)*sin(half_y),
+                    cos(half_r)*cos(half_p)*sin(half_y) - sin(half_r)*sin(half_p)*cos(half_y)])
         
         return array([[1 - 2*q[2]**2 - 2*q[3]**2, 2*q[1]*q[2] - 2*q[0]*q[3], 2*q[1]*q[3] + 2*q[0]*q[2], pose[0]],
                         [2*q[1]*q[2] + 2*q[0]*q[3], 1 - 2*q[1]**2 - 2*q[3]**2, 2*q[2]*q[3] - 2*q[0]*q[1], pose[1]],
@@ -42,87 +119,51 @@ class CoordinateTransformer:
         # return np.array([u_arr_d, v_arr_d], dtype=np.uint8)
         return np.array([u_arr, v_arr], dtype=np.uint8)
 
-    def test(self):
 
 
-        tmp_world = np.array([1,1,0,0])
-        print('in world', tmp_world)
+    def run(self, cmd, pts):
 
-        world_to_vehicle = self.pose_to_4x4_Rt(0,0,0, 0, 0 ,np.deg2rad(-90))
-        tmp_vehicle = world_to_vehicle @ tmp_world
-        print('in vehicle', tmp_vehicle)
+        tr_pts = np.zeros(pts.shape)
 
-        vehicle_to_camera = self.pose_to_4x4_Rt(0,0,0, 0, np.deg2rad(-90) ,0)
-        tmp_camera = vehicle_to_camera @ tmp_vehicle
-        print('in camera', tmp_camera)
+        if cmd == "HELP":
+            print("Put in command in string")
 
-        world_to_camera = vehicle_to_camera @ world_to_vehicle
+        elif cmd == "WC_TO_CC":
+            tr_pts = self.WC_TO_CC @ pts 
 
-        tmp2_camera = np.array([0, -1, 1, 0])
-        print('in camera2', tmp2_camera)
+        elif cmd == "CC_TO_IMG2D":
+            tr_pts = self.CC_TO_IMG2D @ pts
+            tr_pts = tr_pts / tr_pts[2, :]
+            tr_pts = np.vstack([tr_pts, np.ones(tr_pts.shape[1])]) # HC
+ 
+        elif cmd == "CC_TO_IMG3D":
+            tr_pts = self.CC_TO_IMG2D @ pts
+            tr_pts = tr_pts / tr_pts[2, :]
+            tr_pts = np.vstack([tr_pts, np.zeros(tr_pts.shape[1])]) 
+            tr_pts[[2, 3]] = tr_pts[[3, 2]] #[x, y, 0, 1].T
 
+        elif cmd == "IMG3D_TO_PLT":
+            tr_pts = self.IMG3D_TO_PLT @ pts
 
-        #camera_to_world
-        tmp2_world = npl.inv(vehicle_to_camera @ world_to_vehicle) @ tmp2_camera
-        print('in world2', tmp2_world)
-
-
-    def Img_to_Plt(self, points_Img):
-        points_Img_cp = points_Img.copy()
-
-        # Swap x and y
-        points_Img_cp[[0, 1]] = points_Img_cp[[1, 0]]
-        return points_Img_cp
+        elif cmd == "PLT_TO_IMG3D":
+            tr_pts = self.PLT_TO_IMG3D @ pts
+            #tr_pts = tr_pts / tr_pts[2, :]
         
+        elif cmd == "IMG2D_TO_CC":
+            tr_pts = self.IMG2D_TO_CC @ pts
 
-    def run(self, elems_world, pose_vehicle):
-
-        # cam_to_vehicle = self.pose_to_4x4_Rt(x=self.pose_camera[0],
-        #                                      y=self.pose_camera[1],
-        #                                      z=self.pose_camera[2], 
-        #                                      roll=self.pose_camera[3],
-        #                                      pitch=self.pose_camera[4],
-        #                                      yaw=self.pose_camera[5])
-
-        # vehicle_to_world = self.pose_to_4x4_Rt(x=pose_vehicle[0],
-        #                                      y=pose_vehicle[1],
-        #                                      z=pose_vehicle[2], 
-        #                                      roll=pose_vehicle[3],
-        #                                      pitch=pose_vehicle[4],
-        #                                      yaw=pose_vehicle[5])
-
-        # world_to_cam = npl.inv(vehicle_to_world @ cam_to_vehicle)
-        ##############
-
-        world_to_vehicle = self.pose_to_4x4_Rt(-1,0,0, 0, 0 ,np.deg2rad(-90))
-        vehicle_to_camera = self.pose_to_4x4_Rt(0,0,0, 0, np.deg2rad(-90) ,0)
-        world_to_camera = vehicle_to_camera @ world_to_vehicle
+            # tr_pts = tr_pts * tr_pts[2, :]
+        
+            tr_pts = np.vstack([tr_pts, 
+                                np.ones(tr_pts.shape[1])])
 
 
-        ########
-        cam_to_img = np.hstack((self.K1, np.zeros([3, 1])))
+        elif cmd == "CC_TO_WC":
+            tr_pts = self.CC_TO_WC @ pts
 
-#######
-        cam_to_img = np.array([[1000, 0, 500], [0, 1000, 300], [0, 0, 1]]) 
-        cam_to_img = np.hstack((cam_to_img, np.zeros([3, 1])))
+        elif cmd == "IMG3D_TO_IMG2D":
+            tr_pts = np.delete(pts, 2, 0)
 
-#####
-        print('world')
-        print(elems_world[:,0])
+        # print(f"Transform: {cmd}\n {pts[:, :3]}\nto\n{tr_pts[:, :3]}\n")
 
-        print('vehicle')
-        elems_vehicle = world_to_vehicle @ elems_world
-        print(elems_vehicle[:, 0])
-        elms_img = cam_to_img @ world_to_camera @ elems_world
-
-        print('img')
-        print(elms_img[0, :])
-        elms_img = elms_img / elms_img[2, :]
-
-        return self.add_distortion_plumb_bob(u_arr=elms_img[0, :],
-                                      v_arr=elms_img[1, :],
-                                      k1=self.dist1[0],
-                                      k2=self.dist1[1],
-                                      k3=self.dist1[2],
-                                      p1=self.dist1[3],
-                                      p2=self.dist1[4])
+        return tr_pts
