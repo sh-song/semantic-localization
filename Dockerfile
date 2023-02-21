@@ -62,3 +62,6 @@ WORKDIR /workspace
 
 #For displaying matplotlib 3d
 RUN apt install -y python3-tk
+
+#
+RUN pip3 install pyrender

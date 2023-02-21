@@ -6,7 +6,6 @@ import pymap3d as pm
 
 class DataUpdater:
     def __init__(self, cfg):
-        rospy.init_node('semantic-localization')
 
         rospy.Subscriber('/novatel/oem7/inspva', INSPVA, self._pose_cb)
 
@@ -28,12 +27,10 @@ class DataUpdater:
         self.heading = msg.azimuth
 
     def get_vehicle_pose(self):
-        print(f"\n=========+EAT")
+        print(f"\n======Updated Vehice Pose")
         print(self.latitude, self.longitude, self.altitude, self.base_lla[0], self.base_lla[1], self.base_lla[2])
         tmp = [self.latitude, self.longitude, self.altitude, self.base_lla[0], self.base_lla[1], self.base_lla[2]]
-        for item in tmp:
-            print(type(item))
-        print(f"\n=========DONE\n")
+
         x, y, z =  pm.geodetic2enu(self.latitude, self.longitude, self.altitude, self.base_lla[0], self.base_lla[1], self.base_lla[2])
         vehicle_pose_WC = np.array([x, y, z, 0, 0, np.deg2rad(self.heading)])
         return vehicle_pose_WC

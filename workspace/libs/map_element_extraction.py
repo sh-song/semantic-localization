@@ -30,18 +30,11 @@ class MapElementsDB:
                 self.link_dict[linkID]['NEXT'] = \
                                 self.link_start_from[nodeID]
 
+        self._parse_elements_to_link("SAFETYSIGN", ngii.b1_safetysign)
+        self._parse_elements_to_link("LINEMARK", ngii.b2_surfacelinemark)
+        self._parse_elements_to_link("SURFACEMARK", ngii.b3_surfacemark)
+        self._parse_elements_to_link("TRAFFICLIGHT", ngii.c1_trafficlight)
 
-        # self.a1_node = self.parse_a1_node(a1_path)
-        # self.a2_link = self.parse_a2_link(a2_path)
-
-        # self.b1_safetysign = self.parse_b1_safetysign(b1_path)
-        # self.b2_surfacelinemark = 
-        self._to_dict(ngii.b2_surfacelinemark)
-        # self.b3_surfacemark = self.parse_b3_surfacemark(b3_path)
-
-        # self.c1_trafficlight = self.parse_c1_trafficlight(c1_path)
-
-        print('\n\n\n\n\n======================')
 
         self.isQueryInitialized = False
         self.prev_linkID = None
@@ -98,7 +91,7 @@ class MapElementsDB:
     def _get_standard_dict(self):
         return {'NEXT':[], 'PREV':[], 'LEFT': [], 'RIGHT': [], 
                 'MIDPOINT': ('lon', 'lat', 'alt'), 
-                'ROAD LANE': {}, 'TRAFFIC SIGN': {}}
+                'LINEMARK': {}, 'TRAFFIC SIGN': {}}
 
     def _get_KDTree(self, points:list):
         tmp = np.array(points)        
@@ -106,44 +99,52 @@ class MapElementsDB:
         tmp = np.array(tmp)[0:2, :] ## eliminate altitude
         return cKDTree(tmp.T)
 
-    def _to_dict(self, ngii_elements : list):
-
+    def _parse_elements_to_link(self, target_name : str, ngii_elements : list):
         for element in ngii_elements:
 
-            if type(element.L_linkID) is str: #not NaN
-                self.link_dict[element.L_linkID]['ROAD LANE'][element.ID] = element.geometry.coords
+            if target_name == "LINEMARK":
+                if type(element.L_linkID) is str: #not NaN
+                    self.link_dict[element.L_linkID][target_name][element.ID] = element.geometry.coords
 
-            if type(element.R_linkID) is str:
-                self.link_dict[element.R_linkID]['ROAD LANE'][element.ID] = element.geometry.coords
+                if type(element.R_linkID) is str:
+                    self.link_dict[element.R_linkID][target_name][element.ID] = element.geometry.coords
+
+            ## TODO: Implement other elements
+            if target_name == "SAFETYSIGN":
+                pass
+
+            if target_name == "TRAFFICLIGHT":
+                pass
+
+            if target_name == "SURFACEMARK":
+                pass
 
     def initialize_query(self, vehicle_pose_WC):
         x = vehicle_pose_WC[0:2]
         dists, idxs = self.link_KDTree.query(x, k=10, p=2, workers=1)
 
-        print(f"\n\n\n===============\nNearest Link Query from {x}\n")
+        print(f"\n===============\nNearest Link Query from {x}\n")
         for i, idx in enumerate(idxs):
             print(f"Rank#{i}   idx: {idx}  dist: {dists[i]} link: {self.link_KDT_metadata[str(idx)]}")
         print("\n===================")
 
         current_linkID = self.link_KDT_metadata[str(idxs[0])]
         self.isQueryInitialized = True
+        self.prev_linkID = current_linkID
         return current_linkID
 
     def get_current_linkID(self, vehicle_pose_WC):
 
         ##TODO: find current linkID using prev link ID and current pose
 
-        current_linkID = ''
+        current_linkID = self.prev_linkID
         self.prev_linkID = current_linkID
         return current_linkID
 
 class MapElementExtractor:
 
-    # element = np.array([3.0, 3.0, 3.0, 1.0], dtype=np.float32)
-
     def __init__(self, cfg):
         self.cfg = cfg
-        self.elems_WC_dict = {}
 
         ngii = self._get_parsed_NGII_map(cfg.map_path)
         self.base_lla = list(map(float, cfg.base_lla))
@@ -264,21 +265,19 @@ class MapElementExtractor:
 
     def run(self, element_names, vehicle_pose_WC):
         
-        ###TMP...TODO: Complete get_current_linkID and remove the below
-        self.map_db.isQueryInitialized = False
-        ######
         if self.map_db.isQueryInitialized:
             current_linkID = self.map_db.get_current_linkID(vehicle_pose_WC)
         else: # not initialized, not use previous linkID
             current_linkID = self.map_db.initialize_query(vehicle_pose_WC)
 
-        tmp_dict = {}
+        elems_WC_dict = {}
+
         for target_element in element_names:
             
             if target_element == "HELP":
-                print("Available elements: ROAD LANE, TRAFFIC SIGN")
+                print("Available elements: LINEMARK, TRAFFIC SIGN")
 
-            elif target_element == "ROAD LANE":
+            elif target_element == "LINEMARK":
 
                 linkID_of_interest = self._get_id_of_interest(current_linkID)
                 points_dict = self._extract_points(target_element, linkID_of_interest)
@@ -291,13 +290,13 @@ class MapElementExtractor:
                     else: ## First time
                         tmp_points = points
 
-                tmp_dict[target_element] = np.vstack([tmp_points, np.ones(tmp_points.shape[1])])
+                elems_WC_dict[target_element] = np.vstack([tmp_points, np.ones(tmp_points.shape[1])])
         
             elif target_element == "TRAFFIC SIGN":
-                # tmp_dict[target_element] = self.__extract_traffic_sign(local_map)
+                # elems_WC_dict[target_element] = self.__extract_traffic_sign(local_map)
                 pass
 
-            elif target_element == "VIRTUAL ROAD LANE":
+            elif target_element == "VIRTUAL LINEMARK":
 
                 elements_list = []
 
@@ -315,9 +314,8 @@ class MapElementExtractor:
                 right_new_lane_WC = self._generate_straight_lane(8)
                 elements_list.append(right_new_lane_WC)
                 
-                tmp_dict[target_element] = np.hstack(elements_list)
+                elems_WC_dict[target_element] = np.hstack(elements_list)
         #end for
-        self.elems_WC_dict = tmp_dict
-        return self.elems_WC_dict
+        return elems_WC_dict
 
 

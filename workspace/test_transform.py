@@ -2,7 +2,7 @@ import numpy as np
 import numpy.linalg as npl
 
 from libs.coordinate_transform import CoordinateTransformer
-from libs.visualizer import Visualizer
+from workspace.libs.visualizer_plt import Visualizer
 from libs.map_element_extraction import MapElementExtractor
 
 from config import Config

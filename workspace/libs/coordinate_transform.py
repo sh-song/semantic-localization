@@ -164,6 +164,11 @@ class CoordinateTransformer:
         elif cmd == "IMG3D_TO_IMG2D":
             tr_pts = np.delete(pts, 2, 0)
 
+        elif cmd == "WC_TO_VC":
+            tr_pts = self.WC_TO_VC @ pts
+        else:
+            print('\n\n\n[ERROR] Wrong Transform Command!!!')
+
         # print(f"Transform: {cmd}\n {pts[:, :3]}\nto\n{tr_pts[:, :3]}\n")
 
         return tr_pts
