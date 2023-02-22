@@ -147,7 +147,8 @@ class MapElementExtractor:
         self.cfg = cfg
 
         ngii = self._get_parsed_NGII_map(cfg.map_path)
-        self.base_lla = list(map(float, cfg.base_lla))
+        # self.base_lla = list(map(float, cfg.base_lla))
+        self.base_lla = cfg.base_lla
         self.map_db = MapElementsDB(ngii, self.base_lla)
 
         self.precision = cfg.precision

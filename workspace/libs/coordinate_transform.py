@@ -23,11 +23,14 @@ class CoordinateTransformer:
         self.IMG3D_TO_PLT =np.zeros([4,4], dtype=np.float64)
         self.PLT_TO_IMG =np.zeros([4,4], dtype=np.float64)
  
-        self.IMG_TO_WC =np.zeros([4,4], dtype=np.float64)
+        self.IMG3D_TO_CV =np.zeros([4,4], dtype=np.float64)
+        self.CV_TO_IMG =np.zeros([4,4], dtype=np.float64)
+ 
+        self.IMG3D_TO_WC =np.zeros([4,4], dtype=np.float64)
         self.WC_TO_IMG =np.zeros([4,4], dtype=np.float64)
 
     def set_transforms_CC_VC(self, camera_pose_VC):
-        T_camera_pose_VC = self.__pose_to_4x4_Rt(camera_pose_VC)
+        T_camera_pose_VC = self._pose_to_4x4_Rt(camera_pose_VC)
         self.CC_TO_VC = T_camera_pose_VC
         self.VC_TO_CC = npl.inv(T_camera_pose_VC)
 
@@ -43,19 +46,24 @@ class CoordinateTransformer:
         p_y = K[1, 2]
 
         tmp = np.array([-p_x / f_x, -p_y / f_y, 1, 0, 0, 0], dtype=np.float64) # z=1 
-        self.IMG3D_TO_CC = self.__pose_to_4x4_Rt(tmp)
+        self.IMG3D_TO_CC = self._pose_to_4x4_Rt(tmp)
 
         # print(f"CC_TO_IMG2D:\n{self.CC_TO_IMG2D}\nIMG3D_TO_CC:\n{self.IMG3D_TO_CC}\n")
 
     def set_transforms_PLT_IMG(self, plt_pose_IMG):
         # plt_pose_IMG = np.array([h//2, w//2, 0, 0, np.deg2rad(180), np.deg2rad(90)]) 
-        self.IMG3D_TO_PLT = self.__pose_to_4x4_Rt(plt_pose_IMG)
+        self.IMG3D_TO_PLT = self._pose_to_4x4_Rt(plt_pose_IMG)
         self.PLT_TO_IMG3D = npl.inv(self.IMG3D_TO_PLT)
 
         # print(f"IMG3D_TO_PLT:\n{self.IMG3D_TO_PLT}\nPLT_TO_IMG3D:\n{self.PLT_TO_IMG3D}\n")
+    def set_transforms_CV_IMG(self, cv_pose_IMG):
+        self.IMG3D_TO_CV = self._pose_to_4x4_Rt(cv_pose_IMG)
+        self.CV_TO_IMG3D = npl.inv(self.IMG3D_TO_CV)
+
+
 
     def update_transforms_VC_WC(self, vehicle_pose_WC):
-        T_vehicle_pose_WC = self.__pose_to_4x4_Rt(vehicle_pose_WC)
+        T_vehicle_pose_WC = self._pose_to_4x4_Rt(vehicle_pose_WC)
 
         self.VC_TO_WC = T_vehicle_pose_WC
         self.WC_TO_VC = npl.inv(T_vehicle_pose_WC)
@@ -74,7 +82,7 @@ class CoordinateTransformer:
         self.IMG3D_TO_WC = self.CC_TO_WC @ self.IMG3D_TO_CC
         self.WC_TO_IMG = self.CC_TO_IMG2D @ self.WC_TO_CC
 
-        # print(f"IMG_TO_WC:\n{self.IMG_TO_WC}\nWC_TO_IMG:\n{self.WC_TO_IMG}\n")
+        # print(f"IMG3D_TO_WC:\n{self.IMG3D_TO_WC}\nWC_TO_IMG:\n{self.WC_TO_IMG}\n")
 
 
 
@@ -88,7 +96,7 @@ class CoordinateTransformer:
         return T_poses_WC_dict
 
 
-    def __pose_to_4x4_Rt(self, pose):
+    def _pose_to_4x4_Rt(self, pose):
         
         # pose = np.array([x, y, z, roll, pitch, yaw])
 
@@ -120,6 +128,12 @@ class CoordinateTransformer:
         return np.array([u_arr, v_arr], dtype=np.uint8)
 
 
+    def tune_Rt(self, cmd, pose):
+        if cmd == "WC_TO_VC":
+            self.WC_TO_VC = self._pose_to_4x4_Rt(pose) @ self.WC_TO_VC
+            self.VC_TO_WC = npl.inv(self.WC_TO_VC)
+        else:
+            print('\n\n\n[ERROR] Wrong Transform Command!!!')
 
     def run(self, cmd, pts):
 
@@ -145,6 +159,11 @@ class CoordinateTransformer:
         elif cmd == "IMG3D_TO_PLT":
             tr_pts = self.IMG3D_TO_PLT @ pts
 
+
+        elif cmd == "IMG3D_TO_CV":
+            tr_pts = self.IMG3D_TO_CV @ pts
+
+
         elif cmd == "PLT_TO_IMG3D":
             tr_pts = self.PLT_TO_IMG3D @ pts
             #tr_pts = tr_pts / tr_pts[2, :]
@@ -158,6 +177,8 @@ class CoordinateTransformer:
                                 np.ones(tr_pts.shape[1])])
 
 
+        elif cmd == "CC_TO_VC":
+            tr_pts = self.CC_TO_VC @ pts
         elif cmd == "CC_TO_WC":
             tr_pts = self.CC_TO_WC @ pts
 
@@ -166,6 +187,9 @@ class CoordinateTransformer:
 
         elif cmd == "WC_TO_VC":
             tr_pts = self.WC_TO_VC @ pts
+
+        elif cmd == "IMG3D_TO_WC":
+            tr_pts = self.IMG3D_TO_WC @ pts
         else:
             print('\n\n\n[ERROR] Wrong Transform Command!!!')
 

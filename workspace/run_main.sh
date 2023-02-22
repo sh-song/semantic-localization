@@ -1,1 +1,1 @@
-python3 main.py --vis ros
+python3 main.py --vis pyrender

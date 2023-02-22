@@ -7,6 +7,7 @@ import pymap3d as pm
 class DataUpdater:
     def __init__(self, cfg):
 
+        self.cfg = cfg
         rospy.Subscriber('/novatel/oem7/inspva', INSPVA, self._pose_cb)
 
         self.base_lla = cfg.base_lla
@@ -26,11 +27,25 @@ class DataUpdater:
         self.altitude=msg.height
         self.heading = msg.azimuth
 
-    def get_vehicle_pose(self):
-        print(f"\n======Updated Vehice Pose")
-        print(self.latitude, self.longitude, self.altitude, self.base_lla[0], self.base_lla[1], self.base_lla[2])
-        tmp = [self.latitude, self.longitude, self.altitude, self.base_lla[0], self.base_lla[1], self.base_lla[2]]
+    def get_vehicle_pose(self, target=None):
 
-        x, y, z =  pm.geodetic2enu(self.latitude, self.longitude, self.altitude, self.base_lla[0], self.base_lla[1], self.base_lla[2])
-        vehicle_pose_WC = np.array([x, y, z, 0, 0, np.deg2rad(self.heading)])
+        if target is not None:
+            lla = self.cfg.test_scene_llas[target]
+            
+            #### UNDER C
+            tmp = (lla[0], lla[1], lla[2], self.base_lla[0], self.base_lla[1], self.base_lla[2])
+            ########
+
+            x, y, z = pm.geodetic2enu(*tmp)
+
+
+            vehicle_pose_WC = np.array([x, y, z, 0, 0, np.deg2rad(150)])
+
+            print(f"\n======Updated Vehicle Pose, z: {z}")
+
+        else: ## target == None
+            x, y, z =  pm.geodetic2enu(self.latitude, self.longitude, self.altitude, self.base_lla[0], self.base_lla[1], self.base_lla[2])
+            vehicle_pose_WC = np.array([x, y, z, 0, 0, np.deg2rad(self.heading)])
+
+
         return vehicle_pose_WC
