@@ -1,145 +1,10 @@
 import numpy as np
 
-from tqdm import tqdm
-
 import pymap3d
 
 
 from libs.ngiiParser import NGIIParser
-from scipy.spatial import cKDTree
-
-class MapElementsDB:
-    def __init__(self, ngii : NGIIParser, base_lla):
-        self.base_lla = base_lla
-        self.link_KDT_metadata = {}
-        self.link_refpoints = []
-
-        nodeIDs = self._get_nodeIDs(ngii.a1_node)
-        self.link_start_from = self._set_node_dict(nodeIDs)
-        self.link_end_at = self._set_node_dict(nodeIDs)
-        self.link_dict = self._set_link_dict(ngii.a2_link)
-        self.link_KDTree = self._get_KDTree(self.link_refpoints)
-    
-        for nodeID in nodeIDs:
-
-            for linkID in self.link_start_from[nodeID]:
-                self.link_dict[linkID]['PREV'] = \
-                                self.link_end_at[nodeID]
-
-            for linkID in self.link_end_at[nodeID]:
-                self.link_dict[linkID]['NEXT'] = \
-                                self.link_start_from[nodeID]
-
-        self._parse_elements_to_link("SAFETYSIGN", ngii.b1_safetysign)
-        self._parse_elements_to_link("LINEMARK", ngii.b2_surfacelinemark)
-        self._parse_elements_to_link("SURFACEMARK", ngii.b3_surfacemark)
-        self._parse_elements_to_link("TRAFFICLIGHT", ngii.c1_trafficlight)
-
-
-        self.isQueryInitialized = False
-        self.prev_linkID = None
-
-    def _get_nodeIDs(self, a1_node):
-        nodeIDs = []
-        for node in a1_node:
-            nodeIDs.append(node.ID)
-        return nodeIDs
- 
-    def _set_node_dict(self, nodeIDs : list):
-        node_dict = {}
-        for nodeID in nodeIDs:
-            node_dict[nodeID] = []
-        return node_dict
-
-
-    def _set_link_dict(self, a2_link):
-        link_dict = {}
-        for link in a2_link:
-
-            ## Init link dict
-            link_dict[link.ID] = self._get_standard_dict()
-
-            ## Add Adjacent LinkIDs
-            if type(link.R_LinkID) is str:
-                link_dict[link.ID]['RIGHT'].append(link.R_LinkID)
-
-            if type(link.L_LinKID) is str:
-                link_dict[link.ID]['LEFT'].append(link.L_LinKID)
-
-            ## Add Next & Prev NodeIDs
-            self.link_start_from[link.FromNodeID].append(link.ID)
-            self.link_end_at[link.ToNodeID].append(link.ID)
-
-            ## Add Reference Points (lon, lat, alt)
-            kdt_idx0 = len(self.link_KDT_metadata.keys())
-
-            ### Add First Coordinate (lon, lat, alt)
-            self.link_refpoints.append(link.geometry.coords[0])
-            self.link_KDT_metadata[str(kdt_idx0)] = link.ID
-
-            ### Add Middle Coordinate (lon, lat, alt)
-            mid_idx = len(link.geometry.coords) // 2
-            self.link_refpoints.append(link.geometry.coords[mid_idx])
-            self.link_KDT_metadata[str(kdt_idx0+1)] = link.ID
- 
-            ### Add Last Coordinate (lon, lat, alt)
-            self.link_refpoints.append(link.geometry.coords[-1])
-            self.link_KDT_metadata[str(kdt_idx0+2)] = link.ID
-
-        return link_dict
-
-    def _get_standard_dict(self):
-        return {'NEXT':[], 'PREV':[], 'LEFT': [], 'RIGHT': [], 
-                'MIDPOINT': ('lon', 'lat', 'alt'), 
-                'LINEMARK': {}, 'TRAFFIC SIGN': {}}
-
-    def _get_KDTree(self, points:list):
-        tmp = np.array(points)        
-        tmp = pymap3d.geodetic2enu(tmp[:, 1], tmp[:, 0], tmp[:, 2], self.base_lla[0], self.base_lla[1], self.base_lla[2])
-        tmp = np.array(tmp)[0:2, :] ## eliminate altitude
-        return cKDTree(tmp.T)
-
-    def _parse_elements_to_link(self, target_name : str, ngii_elements : list):
-        for element in ngii_elements:
-
-            if target_name == "LINEMARK":
-                if type(element.L_linkID) is str: #not NaN
-                    self.link_dict[element.L_linkID][target_name][element.ID] = element.geometry.coords
-
-                if type(element.R_linkID) is str:
-                    self.link_dict[element.R_linkID][target_name][element.ID] = element.geometry.coords
-
-            ## TODO: Implement other elements
-            if target_name == "SAFETYSIGN":
-                pass
-
-            if target_name == "TRAFFICLIGHT":
-                pass
-
-            if target_name == "SURFACEMARK":
-                pass
-
-    def initialize_query(self, vehicle_pose_WC):
-        x = vehicle_pose_WC[0:2]
-        dists, idxs = self.link_KDTree.query(x, k=10, p=2, workers=1)
-
-        print(f"\n===============\nNearest Link Query from {x}\n")
-        for i, idx in enumerate(idxs):
-            print(f"Rank#{i}   idx: {idx}  dist: {dists[i]} link: {self.link_KDT_metadata[str(idx)]}")
-        print("\n===================")
-
-        current_linkID = self.link_KDT_metadata[str(idxs[0])]
-        self.isQueryInitialized = True
-        self.prev_linkID = current_linkID
-        return current_linkID
-
-    def get_current_linkID(self, vehicle_pose_WC):
-
-        ##TODO: find current linkID using prev link ID and current pose
-
-        current_linkID = self.prev_linkID
-        self.prev_linkID = current_linkID
-        return current_linkID
+from libs.map_elements_db import MapElementsDB
 
 class MapElementExtractor:
 
@@ -272,30 +137,30 @@ class MapElementExtractor:
             current_linkID = self.map_db.initialize_query(vehicle_pose_WC)
 
         elems_WC_dict = {}
+        elems_length_dict = {}
+
+        linkID_of_interest = self._get_id_of_interest(current_linkID)
 
         for target_element in element_names:
             
             if target_element == "HELP":
-                print("Available elements: LINEMARK, TRAFFIC SIGN")
+                print("Available elements: LINEMARK, TRAFFICLIGHT")
 
-            elif target_element == "LINEMARK":
-
-                linkID_of_interest = self._get_id_of_interest(current_linkID)
+            if target_element in ["LINEMARK", "TRAFFICLIGHT", "SAFETYSIGN", "SURFACEMARK"]:
                 points_dict = self._extract_points(target_element, linkID_of_interest)
-
                 tmp_points = None
                 for points in points_dict.values():
-
                     if tmp_points is not None:
                         tmp_points = np.hstack([tmp_points, points])
                     else: ## First time
                         tmp_points = points
+                
+                if tmp_points is not None:
+                    length = tmp_points.shape[1]
+                    elems_WC_dict[target_element] = np.vstack([tmp_points, np.ones(length)])
+                    elems_length_dict[target_element] = length
+ 
 
-                elems_WC_dict[target_element] = np.vstack([tmp_points, np.ones(tmp_points.shape[1])])
-        
-            elif target_element == "TRAFFIC SIGN":
-                # elems_WC_dict[target_element] = self.__extract_traffic_sign(local_map)
-                pass
 
             elif target_element == "VIRTUAL LINEMARK":
 
@@ -317,6 +182,6 @@ class MapElementExtractor:
                 
                 elems_WC_dict[target_element] = np.hstack(elements_list)
         #end for
-        return elems_WC_dict
+        return elems_WC_dict, elems_length_dict
 
 

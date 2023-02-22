@@ -53,7 +53,7 @@ class VisualizerPR:
         try:
             self.scene.remove_node(self.current_map_elements_node)
         except Exception as e:
-            print(e)
+            pass
         self.scene.add_node(new_node)
         self.viewer.render_lock.release()
 

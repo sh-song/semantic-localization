@@ -39,7 +39,7 @@ class DataUpdater:
             x, y, z = pm.geodetic2enu(*tmp)
 
 
-            vehicle_pose_WC = np.array([x, y, z, 0, 0, np.deg2rad(150)])
+            vehicle_pose_WC = np.array([x, y, z, 0, 0, np.deg2rad(151)])
 
             print(f"\n======Updated Vehicle Pose, z: {z}")
 

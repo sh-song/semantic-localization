@@ -33,21 +33,19 @@ class SemanticLocalization:
         self.is_vis_pyrender = is_vis_pyrender
 
 
-            # self.visualizer = VisualizerROS()
         self.visualizer_pr = VisualizerPR()
         self.visualizer_pr.init_nodes()
 
         self.visualizer_img = VisualizerIMG()
-
+        # self.visualizer = VisualizerROS()
         # self.visualizer = VisualizerPLT()
 
 
         self.IMG_H = cfg.IMG_H
         self.IMG_W = cfg.IMG_W
 
-        ## Init shared data
-        self.seg_img = None
-        self.raw_imgs = self.loader.load_images('data/images/songdo_onehour')
+        self.raw_imgs = self.loader.load_images('data/images/songdo_onehour_raw')
+        self.seg_imgs = self.loader.load_images('data/images/songdo_onehour_seg')
 
 
         self.vehicle_pose_WC = cfg.initial_vehicle_pose_WC
@@ -58,47 +56,67 @@ class SemanticLocalization:
         self.transformer.set_transforms_PLT_IMG(cfg.plt_pose_IMG)
         self.transformer.set_transforms_CV_IMG(cfg.cv_pose_IMG)
 
-        ## Set map
-        # global_map = self.loader.run("GLOBAL MAP")
-        # self.extractor.set_global_map(global_map)
-        
-
-        ## Set visualization 3D space
-        #self.visualizer.set_2D_plane()
-
-
 
 
     def run(self):
-        
         ## Update vehicle pose
         vehicle_pose_WC = self.updater.get_vehicle_pose('scene1')
         target_img = self.raw_imgs[0]
+        # target_img = self.seg_imgs[0]
 
+        ############ Segmentation Image Check
+        # print(f"\nYeah Analyzing segmentation image")
+        # print(target_img.shape)
+
+        # h = target_img.shape[0] #1080
+        # w = target_img.shape[1] #1920
+        # c = target_img.shape[2] #3
+        # color_set = []
+        # for i in range(h):
+        #     for j in range(w):
+        #         tmp = target_img[i, j, :].tolist()
+        #         if tmp not in color_set:
+        #             color_set.append(tmp)
+        #         print(f"i: {i} j: {j}: set: {len(color_set)}")
+        
+        # for i in range(len(color_set)):
+        #     print(color_set[i])
+
+        ################
         self.transformer.update_transforms_VC_WC(vehicle_pose_WC)
         self.transformer.tune_Rt("WC_TO_VC", pose=np.array([0, 0, 6, 0, 0, 0])) ## z offset
         self.transformer.update_transforms_CC_WC()
         self.transformer.update_transforms_IMG_WC()
 
         # elems_WC_dict = self.extractor.run(["VIRTUAL LINEMARK"], vehicle_pose_WC)
-        elems_WC_dict = self.extractor.run(["LINEMARK"], vehicle_pose_WC)
-        elems_WC = np.hstack(list(elems_WC_dict.values()))
+        elems_WC_dict, elems_length_dict = self.extractor.run(["LINEMARK", "TRAFFICLIGHT", "SAFETYSIGN", "SURFACEMARK"], vehicle_pose_WC)
 
+        elems_WC_list = []
+        elems_indices_list = []
+        for i, (key, value) in enumerate(elems_WC_dict.items()):
+            elems_WC_list.append(value)
+            elems_indices_list += [i] * elems_length_dict[key]
+        elems_indices = np.array(elems_indices_list).reshape(1, len(elems_indices_list))
+        
+
+        ##TODO: Add rectangular shape around Trafficlight
+
+        
+        ## To Camera Coordinate
+        elems_WC = np.hstack(elems_WC_list)
         elems_CC = self.transformer.run("WC_TO_CC", elems_WC)
-        print(f"\n CHECK Z value:\n{elems_CC[2, :]}")
-        print(f"BEFORE!!! \n{elems_CC.shape}") 
+
+        ## Mask
         z_mask = elems_CC[2, :] > 0
         elems_CC = elems_CC[:, z_mask]
-        print(f"AFTER!!! \n{elems_CC.shape}") 
+        elems_indices = elems_indices[:, z_mask]
 
+        ## 2D Projection
         elems_IMG3D = self.transformer.run("CC_TO_IMG3D", elems_CC)
-
-        # elems_IMG2D = self.transformer.run("CC_TO_IMG2D", elems_CC)
         elems_CV = self.transformer.run("IMG3D_TO_CV", elems_IMG3D)
-        elems_PLT = self.transformer.run("IMG3D_TO_PLT", elems_IMG3D)
-
+        # elems_PLT = self.transformer.run("IMG3D_TO_PLT", elems_IMG3D)
         elems_VC = self.transformer.run("WC_TO_VC", elems_WC)
-        print(f"\n Elems Altitude in VC:\n{elems_VC[2, :]}")
+        # print(f"\n Elems Altitude in VC:\n{elems_VC[2, :]}")
 
 
         ## Visualization
@@ -111,47 +129,15 @@ class SemanticLocalization:
                 self.visualizer_pr.update_3D_pose(key, new_pose)
 
             self.visualizer_pr.set_map_elements(elems_VC)
-            # tmp_elems_WC = self.transformer.run("IMG3D_TO_WC", elems_IMG3D)
-            # tmp_elems_VC = self.transformer.run("WC_TO_VC", tmp_elems_WC)
-            # self.visualizer_pr.set_map_elements(tmp_elems_VC)
-                
-
-            #####TMP##
-            # target_img = np.zeros((1000, 3000, 3), dtype=np.uint8)
-            #########
-
             self.visualizer_img.set_frame(target_img)
 
-            self.visualizer_img.draw_circles(elems_CV)
-            # self.visualizer_img.draw_circles(elems_IMG2D)
+            self.visualizer_img.draw_circles(elems_CV, elems_indices)
             self.visualizer_img.show()
 
             while True:
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
             cv2.destroyAllWindows()
-
-            # # ## Visualize 2D
-            # self.visualizer.reset_display_2D()
-
-            # ## 2D FOV
-            # fov_grid_PLT = self.visualizer.get_meshgrid_2D(self.IMG_H,
-            #                                     self.IMG_W)
-            # grid_pts_number = fov_grid_PLT[0].shape[0] * fov_grid_PLT[0].shape[1] 
-
-            # fov_pts_PLT = np.vstack([fov_grid_PLT[0].flatten(),
-            #                         fov_grid_PLT[1].flatten(),
-            #                         np.zeros(grid_pts_number),
-            #                         np.ones(grid_pts_number)])
-            # self.visualizer.update_2D_points(fov_pts_PLT, color='red')
-
-            # ## 2D Elements
-            # self.visualizer.update_2D_points(elems_PLT)
-
-            # ## Show Visualization
-            # self.visualizer.show_display()
-            # self.visualizer.reset_figure()
-
 
 
         else: ## vis plt
