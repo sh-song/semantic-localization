@@ -32,6 +32,11 @@ class MapElementsDB:
         self._parse_elements_to_link("SURFACEMARK", ngii.b3_surfacemark)
         self._parse_elements_to_link("TRAFFICLIGHT", ngii.c1_trafficlight)
 
+        ###################CCC
+        self._parse_elements_to_link("POSTPOINT", ngii.c6_postpoint)
+        ######################
+
+
 
         self.isQueryInitialized = False
         self.prev_linkID = None

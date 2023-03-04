@@ -1,1 +1,1 @@
-python3 main.py --vis pyrender
+python3 main.py #--vis pyrender

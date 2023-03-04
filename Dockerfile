@@ -65,3 +65,4 @@ RUN apt install -y python3-tk
 
 #
 RUN pip3 install pyrender
+RUN pip3 install lmfit

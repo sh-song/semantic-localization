@@ -29,6 +29,7 @@ class CoordinateTransformer:
         self.IMG3D_TO_WC =np.zeros([4,4], dtype=np.float64)
         self.WC_TO_IMG =np.zeros([4,4], dtype=np.float64)
 
+        self.WC_TO_CV = np.zeros([4,4], dtype=np.float64)
     def set_transforms_CC_VC(self, camera_pose_VC):
         T_camera_pose_VC = self._pose_to_4x4_Rt(camera_pose_VC)
         self.CC_TO_VC = T_camera_pose_VC
@@ -83,9 +84,6 @@ class CoordinateTransformer:
         self.WC_TO_IMG = self.CC_TO_IMG2D @ self.WC_TO_CC
 
         # print(f"IMG3D_TO_WC:\n{self.IMG3D_TO_WC}\nWC_TO_IMG:\n{self.WC_TO_IMG}\n")
-
-
-
     def get_all_T_poses_WC(self):
 
         T_poses_WC_dict = {}
@@ -190,6 +188,14 @@ class CoordinateTransformer:
 
         elif cmd == "IMG3D_TO_WC":
             tr_pts = self.IMG3D_TO_WC @ pts
+
+        elif cmd == "WC_TO_CV":
+            tr_pts = self.CC_TO_IMG2D @ self.WC_TO_CC @ pts
+            tr_pts = tr_pts / tr_pts[2, :]
+            tr_pts = np.vstack([tr_pts, np.zeros(tr_pts.shape[1])]) 
+            tr_pts[[2, 3]] = tr_pts[[3, 2]] #[x, y, 0, 1].T
+            tr_pts = self.IMG3D_TO_CV @ tr_pts
+
         else:
             print('\n\n\n[ERROR] Wrong Transform Command!!!')
 

@@ -10,6 +10,7 @@ from libs.visualizer_ros import VisualizerROS
 from libs.visualizer_img import VisualizerIMG
 from libs.visualizer_pr import VisualizerPR
 from libs.data_updater import DataUpdater
+from libs.optimizer import Optimizer
 import numpy as np
 import numpy.linalg as npl
 import cv2
@@ -30,11 +31,12 @@ class SemanticLocalization:
         self.saver = OutputSaver(cfg)
         self.extractor = MapElementExtractor(cfg)
         self.transformer = CoordinateTransformer()
+        self.optimizer = Optimizer(self.transformer, self.extractor)
         self.is_vis_pyrender = is_vis_pyrender
 
-
-        self.visualizer_pr = VisualizerPR()
-        self.visualizer_pr.init_nodes()
+        if self.is_vis_pyrender:
+            self.visualizer_pr = VisualizerPR()
+            self.visualizer_pr.init_nodes()
 
         self.visualizer_img = VisualizerIMG()
         # self.visualizer = VisualizerROS()
@@ -52,7 +54,8 @@ class SemanticLocalization:
 
         ## Set initial transforms
         self.transformer.set_transforms_CC_VC(cfg.camera_pose_VC)
-        self.transformer.set_transforms_IMG_CC(K=cfg.K_left_color)
+        # self.transformer.set_transforms_IMG_CC(K=cfg.K_left_color)
+        self.transformer.set_transforms_IMG_CC(K=cfg.K_ioniq60)
         self.transformer.set_transforms_PLT_IMG(cfg.plt_pose_IMG)
         self.transformer.set_transforms_CV_IMG(cfg.cv_pose_IMG)
 
@@ -61,30 +64,18 @@ class SemanticLocalization:
     def run(self):
         ## Update vehicle pose
         vehicle_pose_WC = self.updater.get_vehicle_pose('scene1')
-        target_img = self.raw_imgs[0]
-        # target_img = self.seg_imgs[0]
+        raw_img = self.raw_imgs[0]
+        seg_img = self.seg_imgs[0]
 
-        ############ Segmentation Image Check
-        # print(f"\nYeah Analyzing segmentation image")
-        # print(target_img.shape)
+        h = seg_img.shape[0] #1080
+        w = seg_img.shape[1] #1920
+        c = seg_img.shape[2] #3
 
-        # h = target_img.shape[0] #1080
-        # w = target_img.shape[1] #1920
-        # c = target_img.shape[2] #3
-        # color_set = []
-        # for i in range(h):
-        #     for j in range(w):
-        #         tmp = target_img[i, j, :].tolist()
-        #         if tmp not in color_set:
-        #             color_set.append(tmp)
-        #         print(f"i: {i} j: {j}: set: {len(color_set)}")
-        
-        # for i in range(len(color_set)):
-        #     print(color_set[i])
 
-        ################
+        vehicle_pose_WC[2] += -6 ## z offset
+
         self.transformer.update_transforms_VC_WC(vehicle_pose_WC)
-        self.transformer.tune_Rt("WC_TO_VC", pose=np.array([0, 0, 6, 0, 0, 0])) ## z offset
+        # self.transformer.tune_Rt("WC_TO_VC", pose=delta_pose) ## z offset
         self.transformer.update_transforms_CC_WC()
         self.transformer.update_transforms_IMG_WC()
 
@@ -114,72 +105,46 @@ class SemanticLocalization:
         ## 2D Projection
         elems_IMG3D = self.transformer.run("CC_TO_IMG3D", elems_CC)
         elems_CV = self.transformer.run("IMG3D_TO_CV", elems_IMG3D)
-        # elems_PLT = self.transformer.run("IMG3D_TO_PLT", elems_IMG3D)
-        elems_VC = self.transformer.run("WC_TO_VC", elems_WC)
         # print(f"\n Elems Altitude in VC:\n{elems_VC[2, :]}")
 
 
-        ## Visualization
 
+        ###########UCUCU
+        seg_img_mask = seg_img[:, :, 0] == 2
+        seg_mask_for_view = seg_img_mask.astype(np.uint8) * 255
+        seg_mask_for_view = cv2.cvtColor(seg_mask_for_view, cv2.COLOR_GRAY2BGR)
+        self.visualizer_img.set_frame(seg_mask_for_view)
+        self.visualizer_img.draw_circles(elems_CV, elems_indices)
+        self.visualizer_img.save('before')
+        
+        print(f'\n=====init pose: {vehicle_pose_WC}')
+        self.optimizer.run(seg_img_mask.astype(np.uint8), pose0=vehicle_pose_WC)
+        
+
+        ## 2D Visualization
+
+        elems_WC = elems_WC_dict['LINEMARK']
+        elems_CV = self.transformer.run("WC_TO_CV", elems_WC)
+        seg_mask_for_view = seg_img_mask.astype(np.uint8) * 255
+        seg_mask_for_view = cv2.cvtColor(seg_mask_for_view, cv2.COLOR_GRAY2BGR)
+        self.visualizer_img.set_frame(seg_mask_for_view)
+
+        after_elems_indices = np.zeros([1, elems_CV.shape[1]])
+        self.visualizer_img.draw_circles(elems_CV, after_elems_indices)
+        self.visualizer_img.save('after')
+        # self.visualizer_img.show()
+
+        ## 3D Visualization
         if self.is_vis_pyrender:
-
             T_poses_WC_dict = self.transformer.get_all_T_poses_WC()
             for key, pose in T_poses_WC_dict.items():
                 new_pose = self.transformer.run('WC_TO_VC', pose)
                 self.visualizer_pr.update_3D_pose(key, new_pose)
 
+            elems_VC = self.transformer.run("WC_TO_VC", elems_WC)
             self.visualizer_pr.set_map_elements(elems_VC)
-            self.visualizer_img.set_frame(target_img)
-
-            self.visualizer_img.draw_circles(elems_CV, elems_indices)
-            self.visualizer_img.show()
-
-            while True:
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
-            cv2.destroyAllWindows()
 
 
-        else: ## vis plt
-            ## Visualize 3D
-            self.visualizer.reset_display_3D()
-            T_poses_WC_dict = self.transformer.get_all_T_poses_WC()
-            self.visualizer.update_3D_poses(T_poses_WC_dict)
-
-            for name, points in elems_WC_dict.items():
-                self.visualizer.update_3D_points(name, points, color='orange')
-
-            fov_grid_PLT = self.visualizer.get_meshgrid_2D(self.IMG_H,
-                                                self.IMG_W)
-            grid_pts_number = fov_grid_PLT[0].shape[0] * fov_grid_PLT[0].shape[1] 
-
-            print('----------FOV START')
-            fov_pts_PLT = np.vstack([fov_grid_PLT[0].flatten(),
-                                    fov_grid_PLT[1].flatten(),
-                                    np.zeros(grid_pts_number),
-                                    np.ones(grid_pts_number)])
-
-            fov_pts_IMG2D = np.vstack([fov_grid_PLT[1].flatten(),
-                                    fov_grid_PLT[0].flatten(),
-                                    np.ones(grid_pts_number)])
-
-
-            fov_pts_CC = self.transformer.run("IMG2D_TO_CC", fov_pts_IMG2D)
-            fov_pts_WC = self.transformer.run("CC_TO_WC", fov_pts_CC)
-
-            self.visualizer.update_3D_points('FOV', fov_pts_WC, color='red')
-
-
-            ## Visualize 2D
-            self.visualizer.reset_display_2D()
-
-            self.visualizer.update_2D_points(fov_pts_PLT, color='red')
-
-            self.visualizer.update_2D_points(elems_PLT)
-
-            ## Show Visualization
-            self.visualizer.show_display()
-            self.visualizer.reset_figure()
 
 if __name__ == "__main__":
 
@@ -205,5 +170,13 @@ if __name__ == "__main__":
     # while True
     rate = rospy.Rate(30)
     # while not rospy.is_shutdown():
-    stereo.run()
+    import cProfile, pstats
+    with cProfile.Profile() as pr:
+        stereo.run()
+
+
+    # pr.print_stats(sort='tottime')
+    pr.print_stats(sort='ncalls')
+
+    # stereo.run()
         # rate.sleep()

@@ -9,7 +9,7 @@ class VisualizerIMG:
         self.frame = img
 
     def draw_circles(self, elems, indices):
-        colors = [(0, 0, 255), (0, 255, 0), (255, 0, 0), (0, 140, 255)]
+        colors = [(0, 0, 255), (0, 140, 255), (255, 0, 0), (0, 255, 0)]
         elems = elems.astype(int)
 
         ## For OpenCV coordinate
@@ -23,5 +23,13 @@ class VisualizerIMG:
 
     def show(self):
         cv2.imshow('frame', self.frame)
+        while True:
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+        cv2.destroyAllWindows()
 
+
+
+    def save(self, name):
+        cv2.imwrite(f'results/{name}.png', self.frame)
 

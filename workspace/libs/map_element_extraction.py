@@ -146,7 +146,7 @@ class MapElementExtractor:
             if target_element == "HELP":
                 print("Available elements: LINEMARK, TRAFFICLIGHT")
 
-            if target_element in ["LINEMARK", "TRAFFICLIGHT", "SAFETYSIGN", "SURFACEMARK"]:
+            if target_element in ["LINEMARK", "SAFETYSIGN", "SURFACEMARK"]:
                 points_dict = self._extract_points(target_element, linkID_of_interest)
                 tmp_points = None
                 for points in points_dict.values():
@@ -160,27 +160,23 @@ class MapElementExtractor:
                     elems_WC_dict[target_element] = np.vstack([tmp_points, np.ones(length)])
                     elems_length_dict[target_element] = length
  
+            elif target_element == "TRAFFICLIGHT":
+                points_dict = self._extract_points(target_element, linkID_of_interest)
+                tmp_points = None
+                for points in points_dict.values():
+                    if tmp_points is not None:
+                        tmp_points = np.hstack([tmp_points, points])
+                    else: ## First time
+                        tmp_points = points
 
 
-            elif target_element == "VIRTUAL LINEMARK":
 
-                elements_list = []
+                if tmp_points is not None:
+                   length = tmp_points.shape[1]
+                   elems_WC_dict[target_element] = np.vstack([tmp_points, np.ones(length)])
+                   elems_length_dict[target_element] = length
 
-                left_lane_WC = self._generate_straight_lane(4)
-                right_lane_WC = self._generate_straight_lane(6)
 
-                elements_list.append(left_lane_WC)
-                elements_list.append(right_lane_WC)
-
-                front_far_lane_WC = self._generate_straight_lane(10, isVertical=False)
-                front_near_lane_WC = self._generate_straight_lane(8, isVertical=False)
-                elements_list.append(front_far_lane_WC)
-                elements_list.append(front_near_lane_WC)
-
-                right_new_lane_WC = self._generate_straight_lane(8)
-                elements_list.append(right_new_lane_WC)
-                
-                elems_WC_dict[target_element] = np.hstack(elements_list)
         #end for
         return elems_WC_dict, elems_length_dict
 
